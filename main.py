@@ -16,6 +16,7 @@ import time
 
 MODEL_NAME = "large-v3"
 NUM_WORKERS = 2
+AUDIO_DIR = "audio"
 
 
 @asynccontextmanager
@@ -42,8 +43,8 @@ lock: asyncio.Lock = asyncio.Lock()
 
 
 class TranscriptionTask:
-    def __init__(self, path: str, name: str, language: Optional[str] = None):
-        self.uuid = str(uuid.uuid4())
+    def __init__(self, uuid: str, path: str, name: str, language: Optional[str] = None):
+        self.uuid = uuid
         self.name = name
         self.path = path
         self.language = language
@@ -151,15 +152,9 @@ async def remove_from_queue(item) -> bool:
 
 @app.post("/transcribe")
 async def start_transcription(request: Request, file: UploadFile = File(...), language: Optional[str] = Form(None)):
+    os.makedirs(AUDIO_DIR, exist_ok=True)
     task_uuid = str(uuid.uuid4())
-    audio_dir = f"audio/{task_uuid}"
-    os.makedirs(audio_dir, exist_ok=True)
-
-    random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    file_extension = os.path.splitext(file.filename)[1]
-    base_name = os.path.splitext(file.filename)[0]
-    new_filename = f"{base_name}_{random_string}{file_extension}"
-    file_path = os.path.join(audio_dir, new_filename)
+    file_path = f"{AUDIO_DIR}/{task_uuid}_{file.filename}"
 
     async with aiofiles.open(file_path, "wb") as out_f:
         while chunk := await file.read(1024 * 1024):
@@ -168,7 +163,7 @@ async def start_transcription(request: Request, file: UploadFile = File(...), la
                 return
             await out_f.write(chunk)
 
-    task = TranscriptionTask(file_path, file.filename, language)
+    task = TranscriptionTask(task_uuid, file_path, file.filename, language)
     tasks[task.uuid] = task
     await task_queue.put(task)
     print(f"Queue: {[i.uuid for i in list(task_queue._queue)]}")
@@ -259,8 +254,8 @@ async def transcription_page(request: Request, task_id: str):
     task = tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return templates.TemplateResponse("transcription.html", {"request": request, "task_id": task_id})
+    return templates.TemplateResponse("transcription.html", {"request": request, "task_id": task_id, "name": task.name})
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host="0.0.0.0", port=1337)

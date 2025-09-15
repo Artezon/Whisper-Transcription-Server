@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Transcription - {{task_id}}</title>
+    <title>Распознавание речи - {{name}}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Onest:wght@100..900&display=swap" rel="stylesheet">
@@ -484,7 +484,7 @@
                     segmentDiv.className = 'segment';
                     segmentDiv.setAttribute('data-start', segment.start);
 
-                    const timestamp = this.formatTimestamp(segment.start, segment.end);
+                    const timestamp = `${this.formatTimestamp(segment.start)} - ${this.formatTimestamp(segment.end)}`;
                     segmentDiv.innerHTML = `
                         <div class="timestamp">${timestamp}</div>
                         <div class="segment-text">${segment.text}</div>
@@ -497,14 +497,19 @@
                 this.transcriptionOutput.scrollTop = this.transcriptionOutput.scrollHeight;
             }
 
-            formatTimestamp(start, end) {
-                const formatTime = (seconds) => {
-                    const minutes = Math.floor(seconds / 60);
-                    const secs = Math.floor(seconds % 60);
-                    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                };
-
-                return `${formatTime(start)} - ${formatTime(end)}`;
+            formatTimestamp(seconds, separateHours = true, decimalPlaces = 0) {
+                const hours = Math.floor(seconds / 3600)
+                const minutes = separateHours ? Math.floor(seconds / 60 % 60) : Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                let res = `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                if (separateHours && hours > 0) {
+                    res = `${hours}:${res}`;
+                }
+                if (decimalPlaces > 0) {
+                    const fraction = (seconds % 1).toFixed(decimalPlaces).slice(2);
+                    res += `.${fraction}`;
+                }
+                return res;
             }
 
             async cancelTranscription() {
@@ -533,22 +538,20 @@
             }
 
             getPlainText(withTimestamps) {
-                const segments = Array.from(this.transcriptionOutput.querySelectorAll('.segment'));
-                return segments.map(seg => {
-                    const ts = seg.querySelector('.timestamp').textContent;
-                    const text = seg.querySelector('.segment-text').textContent;
+                if (!this.data || !this.data.segments) return "";
+
+                return this.data.segments.map(seg => {
+                    const text = seg.text.trim();
+
                     if (withTimestamps) {
-                        let [start] = ts.split(' - ');
-                        // Add hours if >= 3600
-                        const parts = start.split(':').map(Number);
-                        let formatted = parts.length === 3
-                            ? `[${parts[0]}:${parts[1].toString().padStart(2, '0')}:${parts[2].toString().padStart(2, '0')}]`
-                            : `[${start}]`;
+                        const formatted = `[${this.formatTimestamp(seg.start)}]`;
                         return `${formatted} ${text}`;
                     }
+
                     return text;
                 }).join(withTimestamps ? '\n' : ' ');
             }
+
 
             copyText(withTimestamps) {
                 const content = this.getPlainText(withTimestamps);
