@@ -385,11 +385,19 @@
             startSSE() {
                 this.closeSSE(); // Close any existing connection
 
+                this.data = { segments: [] };
+
                 this.eventSource = new EventSource(`/stream/${this.taskId}`);
 
                 this.eventSource.onmessage = (event) => {
                     try {
-                        this.data = JSON.parse(event.data);
+                        this.newData = JSON.parse(event.data);
+                        let segments = this.data.segments;
+                        if (Array.isArray(this.newData.segments)) {
+                            segments = segments.concat(this.newData.segments);
+                        }
+                        this.data = { ...this.data, ...this.newData };
+                        this.data.segments = segments;
                         this.updateTranscriptionStatus();
                     } catch (error) {
                         console.error('Error parsing SSE data:', error);
@@ -449,7 +457,7 @@
 
                 // Update segments
                 if (this.data.segments && this.data.segments.length > 0) {
-                    this.updateTranscriptionOutput(this.data, this.data.segments);
+                    this.updateTranscriptionOutput();
                 }
 
                 // Handle completion
@@ -474,12 +482,8 @@
                 }
             }
 
-            updateTranscriptionOutput(data, segments) {
-                segments.forEach(segment => {
-                    // Check if segment already exists
-                    const existingSegment = this.transcriptionOutput.querySelector(`[data-start="${segment.start}"]`);
-                    if (existingSegment) return;
-
+            updateTranscriptionOutput() {
+                this.newData.segments.forEach(segment => {
                     const segmentDiv = document.createElement('div');
                     segmentDiv.className = 'segment';
                     segmentDiv.setAttribute('data-start', segment.start);
@@ -492,9 +496,6 @@
 
                     this.transcriptionOutputBox.appendChild(segmentDiv);
                 });
-
-                // Auto-scroll to bottom
-                this.transcriptionOutput.scrollTop = this.transcriptionOutput.scrollHeight;
             }
 
             formatTimestamp(seconds, separateHours = true, decimalPlaces = 0) {
@@ -552,7 +553,6 @@
                 }).join(withTimestamps ? '\n' : ' ');
             }
 
-
             copyText(withTimestamps) {
                 const content = this.getPlainText(withTimestamps);
                 const textarea = document.createElement('textarea');
@@ -569,8 +569,8 @@
 
             saveText(withTimestamps) {
                 const content = this.getPlainText(withTimestamps);
-                let filename = this.data.name;
-                if (this.data.name.length > 0 && this.data.name[0] !== '.') {
+                let filename = "transcription";
+                if (this.data.name && this.data.name.includes('.')) {
                     filename = this.data.name.substring(0, this.data.name.lastIndexOf('.'));
                 }
                 this.downloadFile(content, withTimestamps ? `${filename}_timestamps.txt` : `${filename}.txt`);
