@@ -2,31 +2,43 @@ import json
 import random
 import string
 import aiofiles
-from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from contextlib import asynccontextmanager
+from fastapi.responses import HTMLResponse, StreamingResponse
 import asyncio
 import os
 import uuid
-from typing import Optional
+from typing import List, Optional
 from fastapi.templating import Jinja2Templates
 from faster_whisper import WhisperModel
 import uvicorn
 import time
 
 MODEL_NAME = "large-v3"
-MAX_SIMULTANEOUS_TASKS = 2
+NUM_WORKERS = 2
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    for i in range(NUM_WORKERS):
+        workers.append(asyncio.create_task(worker_loop(i)))
+    print(f"Created {NUM_WORKERS} workers")
+    yield
+    for w in workers:
+        w.cancel()
+
+
+app = FastAPI(lifespan=lifespan)
 templates = Jinja2Templates(directory="templates")
 
 print(f"Loading model {MODEL_NAME}...")
 model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
 print("Model loaded and ready for transcription requests")
 
-semaphore = asyncio.Semaphore(MAX_SIMULTANEOUS_TASKS)
-tasks: dict[str, "TranscriptionTask"] = {}  # store active tasks by UUID
-task_queue: list["TranscriptionTask"] = []
-task_queue_condition = asyncio.Condition()
+tasks: dict[str, "TranscriptionTask"] = {}
+task_queue: asyncio.Queue["TranscriptionTask"] = asyncio.Queue()
+workers: List[asyncio.Task] = []
+lock: asyncio.Lock = asyncio.Lock()
 
 
 class TranscriptionTask:
@@ -35,13 +47,13 @@ class TranscriptionTask:
         self.name = name
         self.path = path
         self.language = language
-        self.queue_position = None
-        self.progress = 0.0
+        self.progress = None
         self.segments: list[dict] = []
         self.finished = False
         self.cancelled = False
         self.error: Optional[str] = None
         self.subscribers: list[asyncio.Queue] = []
+        self.worker_id = None
 
     def subscribe(self) -> asyncio.Queue:
         event_queue = asyncio.Queue()
@@ -54,104 +66,112 @@ class TranscriptionTask:
         except ValueError:
             pass
 
-    def publish_update(self, **kwargs):
+    async def publish_update(self, **kwargs):
         data = {k: v for k, v in kwargs.items() if v is not None}
         for q in self.subscribers:
-            q.put_nowait(data)
+            await q.put(data)
+    
+    async def run(self, worker_id: int):
+        if self.cancelled:
+            return
 
-    async def run(self):
+        self.worker_id = worker_id
+        print(f"Worker {worker_id}: starting {self.uuid}")
+        segments, info = await asyncio.to_thread(model.transcribe, self.path, self.language, multilingual=True)
+        print(self.uuid, self.language, info.language, info.language_probability)
+        self.language = info.language
+        await self.publish_update(language=self.language)
+
+        def generate_segment():
+            try:
+                return next(segments)
+            except StopIteration:
+                return
+
+        new_segments: list[dict] = []
+        last_notification_time = 0
+        while True:
+            segment = await asyncio.to_thread(generate_segment)
+            if segment is None:
+                break
+            seg_dict = {"start": round(segment.start, 2), "end": round(segment.end, 2), "text": segment.text.strip()}
+            new_segments.append(seg_dict)
+
+            now = time.time()
+            if now - last_notification_time > 0.1:
+                self.progress = round(segment.end / info.duration, 4)
+                await self.publish_update(progress=self.progress, segments=new_segments)
+                print(self.uuid, f"{(self.progress * 100):.0f}%")
+                self.segments.extend(new_segments)
+                new_segments = []
+                last_notification_time = now
+
+        self.progress = 1.0
+        self.finished = True
+        await self.publish_update(progress=self.progress, finished=self.finished, segments=new_segments)
+        print(f"Worker {worker_id}: finished {self.uuid}")
+
+
+async def worker_loop(worker_id: int):
+    while True:
+        async with lock:
+            task: TranscriptionTask = await task_queue.get()
+        print(f"Queue: {[i.uuid for i in list(task_queue._queue)]}")
+        
+        queue_list = list(task_queue._queue)
+        for i, t in enumerate(queue_list):
+            await t.publish_update(queue_pos=i + 1)
+
         try:
-            async with task_queue_condition:
-                task_queue.append(self)
-                self.queue_position = len(task_queue)
-                self.publish_update(queue_pos=self.queue_position)
-
-                while task_queue[0] != self:
-                    await task_queue_condition.wait()
-                    self.queue_position -= 1
-                    self.publish_update(queue_pos=self.queue_position)
-            
-            async with semaphore:
-                if task_queue[0] == self:
-                    task_queue.pop(0)
-                    self.queue_position = None
-                    async with task_queue_condition:
-                        task_queue_condition.notify_all()
-
-                segments, info = await asyncio.to_thread(model.transcribe, self.path, self.language, multilingual=True)
-                print(self.uuid, self.language, info.language, info.language_probability)
-                self.language = info.language
-                self.publish_update(language=self.language)
-
-                def generate_segment():
-                    try:
-                        return next(segments)
-                    except StopIteration:
-                        return
-
-                new_segments: list[dict] = []
-                last_notification_time = 0
-                while True:
-                    segment = await asyncio.to_thread(generate_segment)
-                    if segment is None:
-                        break
-                    seg_dict = {"start": round(segment.start, 2), "end": round(segment.end, 2), "text": segment.text.strip()}
-                    new_segments.append(seg_dict)
-                    
-                    current_time = time.time()
-                    if current_time - last_notification_time > 0.1:
-                        self.progress = round(segment.end / info.duration, 4)
-                        self.publish_update(progress=self.progress, segments=new_segments)
-                        print(self.uuid, f"{(self.progress * 100):.0f}%")
-                        self.segments.extend(new_segments)
-                        new_segments = []
-                        last_notification_time = current_time
-                
-                self.progress = 1.0
-                self.finished = True
-                self.publish_update(progress=self.progress, finished=self.finished, segments=new_segments)
-                print(self.uuid, "Finished")
-
+            await task.run(worker_id)
         except asyncio.CancelledError:
-            self.cancelled = True
-            self.finished = True
-            if self in task_queue:
-                task_queue.pop(task_queue.index(self))
-                async with task_queue_condition:
-                    task_queue_condition.notify_all()
-            print(self.uuid, "Task cancelled")
-            self.publish_update(finished=self.finished, cancelled=self.cancelled, message="Cancelled by user")
+            task.cancelled = True
+            task.finished = True
+            print(task.uuid, "Task cancelled")
+            await task.publish_update(finished=task.finished, cancelled=task.cancelled, message="Cancelled by user")
             raise
         except Exception as e:
-            self.error = str(e)
-            self.finished = True
-            if self in task_queue:
-                task_queue.pop(task_queue.index(self))
-                async with task_queue_condition:
-                    task_queue_condition.notify_all()
-            print(self.uuid, f"Transcription error: {self.error}")
-            self.publish_update(error=self.error)
+            task.error = str(e)
+            task.finished = True
+            await task.publish_update(finished=task.finished, error=task.error)
+            print(f"Worker {worker_id}: task {task.uuid} error {e}")
+        finally:
+            task_queue.task_done()
+
+
+async def remove_from_queue(item) -> bool:
+    async with lock:
+        try:
+            task_queue._queue.remove(item)
+            print(f"Queue: {[i.uuid for i in list(task_queue._queue)]}")
+            return True
+        except ValueError:
+            return False
 
 
 @app.post("/transcribe")
-async def start_transcription(file: UploadFile = File(...), language: Optional[str] = Form(None)):
+async def start_transcription(request: Request, file: UploadFile = File(...), language: Optional[str] = Form(None)):
     task_uuid = str(uuid.uuid4())
     audio_dir = f"audio/{task_uuid}"
     os.makedirs(audio_dir, exist_ok=True)
-    
+
     random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
     file_extension = os.path.splitext(file.filename)[1]
     base_name = os.path.splitext(file.filename)[0]
     new_filename = f"{base_name}_{random_string}{file_extension}"
     file_path = os.path.join(audio_dir, new_filename)
-    
+
     async with aiofiles.open(file_path, "wb") as out_f:
         while chunk := await file.read(1024 * 1024):
+            if await request.is_disconnected():
+                print("Client disconnected, aborting upload")
+                return
             await out_f.write(chunk)
-    
+
     task = TranscriptionTask(file_path, file.filename, language)
     tasks[task.uuid] = task
-    task.asyncio_task = asyncio.create_task(task.run())
+    await task_queue.put(task)
+    print(f"Queue: {[i.uuid for i in list(task_queue._queue)]}")
     
     return {"task_id": task.uuid}
 
@@ -161,11 +181,18 @@ async def get_transcription_data(task_id: str):
     task = tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # calculate queue position
+    queue_list = list(task_queue._queue)
+    queue_pos = None
+    if not task.finished and not task.cancelled and task in queue_list:
+        queue_pos = queue_list.index(task) + 1
+
     return {k: v for k, v in {
         "task_id": task.uuid,
         "name": task.name,
         "language": task.language,
-        "queue_pos": task.queue_position,
+        "queue_pos": queue_pos,
         "progress": task.progress,
         "segments": task.segments,
         "finished": task.finished,
@@ -191,7 +218,6 @@ async def stream_transcription(task_id: str):
                     break
                 data = await event_queue.get()
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-                
         finally:
             task.unsubscribe(event_queue)
 
@@ -204,9 +230,20 @@ async def cancel_transcription(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # Cancel the running asyncio task
     if not task.finished:
-        task.asyncio_task.cancel()
+        task.cancelled = True
+        task.finished = True
+        if task.worker_id is not None:
+            workers[task.worker_id].cancel()
+            workers[task.worker_id] = asyncio.create_task(worker_loop(task.worker_id))
+        else:
+            await task.publish_update(finished=task.finished, cancelled=task.cancelled, message="Cancelled by user")
+            remove_from_queue(task)
+
+            global task_queue
+            queue_list = list(task_queue._queue)
+            for i, task in enumerate(queue_list):
+                await task.publish_update(queue_pos=i + 1)
         return {"task_id": task_id, "status": "cancelled"}
     else:
         return {"task_id": task_id, "status": "already finished"}
@@ -222,11 +259,7 @@ async def transcription_page(request: Request, task_id: str):
     task = tasks.get(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    return templates.TemplateResponse("transcription.html", {
-        "request": request,
-        "task_id": task_id
-    })
+    return templates.TemplateResponse("transcription.html", {"request": request, "task_id": task_id})
 
 
 if __name__ == "__main__":

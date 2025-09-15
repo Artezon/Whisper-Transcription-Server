@@ -255,6 +255,7 @@
 
             .container {
                 border-radius: 0;
+                width: 100%;
             }
             
             .header {
@@ -449,7 +450,7 @@
             handleFileSelection(file) {
                 // Validate file type
                 if (!file.type.startsWith('audio/')) {
-                    alert('Please select an audio file.');
+                    alert('К сожалению, файл такого типа не поддерживается :(');
                     return;
                 }
 
