@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание речи</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Onest:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 40px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .drop-zone {
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 60px 40px;
+            background: #f8fafc;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(74, 172, 254, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .drop-zone:hover::before {
+            left: 100%;
+        }
+
+        .drop-zone:hover {
+            border-color: #4facfe;
+            background: #f0f9ff;
+            transform: translateY(-2px);
+        }
+
+        .drop-zone.dragover {
+            border-color: #4facfe;
+            background: #e0f2fe;
+            transform: scale(1.02);
+        }
+
+        .drop-icon {
+            font-size: 4rem;
+            color: #94a3b8;
+            margin-bottom: 20px;
+        }
+
+        .drop-text {
+            font-size: 1.3rem;
+            color: #475569;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .drop-subtext {
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+        }
+
+        .modal h2 {
+            margin-bottom: 30px;
+            color: #1e293b;
+            font-size: 1.8rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 600;
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .button-secondary {
+            background: #64748b;
+            margin-right: 10px;
+        }
+
+        .button-secondary:hover {
+            background: #475569;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .file-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #0369a1;
+        }
+
+        @media (max-width: 768px) {
+            html {
+                height: 100vh;
+            }
+
+            body {
+                padding: 0px;
+                display: flex;
+            }
+
+            .container {
+                border-radius: 0;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .upload-section {
+                padding: 40px 20px;
+            }
+            
+            .modal-content {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Распознавание речи</h1>
+            <p>от Artezon</p>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <div class="drop-zone" id="dropZone">
+                <div class="drop-icon">📁</div>
+                <div class="drop-text">Перетащите аудиофайл сюда</div>
+                <div class="drop-subtext">или нажмите здесь, чтобы выбрать файл на вашем устройстве</div>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept="audio/*">
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2>Параметры распознавания</h2>
+            
+            <div class="file-info" id="fileInfo"></div>
+            
+            <div class="form-group">
+                <label for="languageSelect">Язык</label>
+                <select id="languageSelect">
+                    <option value="">Определить автоматически</option>
+                    <option value="af">Африкаанс</option>
+                    <option value="ar">Арабский</option>
+                    <option value="hy">Армянский</option>
+                    <option value="az">Азербайджанский</option>
+                    <option value="be">Белорусский</option>
+                    <option value="bs">Боснийский</option>
+                    <option value="bg">Болгарский</option>
+                    <option value="ca">Каталанский</option>
+                    <option value="zh">Китайский</option>
+                    <option value="hr">Хорватский</option>
+                    <option value="cs">Чешский</option>
+                    <option value="da">Датский</option>
+                    <option value="nl">Нидерландский</option>
+                    <option value="en">Английский</option>
+                    <option value="et">Эстонский</option>
+                    <option value="fi">Финский</option>
+                    <option value="fr">Французский</option>
+                    <option value="gl">Галисийский</option>
+                    <option value="de">Немецкий</option>
+                    <option value="el">Греческий</option>
+                    <option value="he">Иврит</option>
+                    <option value="hi">Хинди</option>
+                    <option value="hu">Венгерский</option>
+                    <option value="is">Исландский</option>
+                    <option value="id">Индонезийский</option>
+                    <option value="it">Итальянский</option>
+                    <option value="ja">Японский</option>
+                    <option value="kn">Каннада</option>
+                    <option value="kk">Казахский</option>
+                    <option value="ko">Корейский</option>
+                    <option value="lv">Латышский</option>
+                    <option value="lt">Литовский</option>
+                    <option value="mk">Македонский</option>
+                    <option value="ms">Малайский</option>
+                    <option value="mr">Маратхи</option>
+                    <option value="mi">Маори</option>
+                    <option value="ne">Непальский</option>
+                    <option value="no">Норвежский</option>
+                    <option value="fa">Персидский</option>
+                    <option value="pl">Польский</option>
+                    <option value="pt">Португальский</option>
+                    <option value="ro">Румынский</option>
+                    <option value="ru">Русский</option>
+                    <option value="sr">Сербский</option>
+                    <option value="sk">Словацкий</option>
+                    <option value="sl">Словенский</option>
+                    <option value="es">Испанский</option>
+                    <option value="sw">Суахили</option>
+                    <option value="sv">Шведский</option>
+                    <option value="tl">Тагальский</option>
+                    <option value="ta">Тамильский</option>
+                    <option value="th">Тайский</option>
+                    <option value="tr">Турецкий</option>
+                    <option value="uk">Украинский</option>
+                    <option value="ur">Урду</option>
+                    <option value="vi">Вьетнамский</option>
+                    <option value="cy">Валлийский</option>
+                </select>
+            </div>
+            
+            <div class="progress-container" id="uploadProgress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="uploadProgressFill"></div>
+                </div>
+                <div class="progress-text" id="uploadProgressText">Uploading file...</div>
+            </div>
+            
+            <div style="text-align: right; margin-top: 30px;">
+                <button type="button" class="button button-secondary" id="cancelBtn">Отмена</button>
+                <button type="button" class="button" id="transcribeBtn">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TranscriptionApp {
+            constructor() {
+                this.selectedFile = null;
+                this.initializeElements();
+                this.attachEventListeners();
+            }
+
+            initializeElements() {
+                // Upload elements
+                this.dropZone = document.getElementById('dropZone');
+                this.fileInput = document.getElementById('fileInput');
+                
+                // Modal elements
+                this.modal = document.getElementById('modal');
+                this.fileInfo = document.getElementById('fileInfo');
+                this.languageSelect = document.getElementById('languageSelect');
+                this.uploadProgress = document.getElementById('uploadProgress');
+                this.uploadProgressFill = document.getElementById('uploadProgressFill');
+                this.uploadProgressText = document.getElementById('uploadProgressText');
+                this.transcribeBtn = document.getElementById('transcribeBtn');
+                this.cancelBtn = document.getElementById('cancelBtn');
+            }
+
+            attachEventListeners() {
+                // File drop and selection
+                this.dropZone.addEventListener('click', () => this.fileInput.click());
+                this.dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
+                this.dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                this.dropZone.addEventListener('drop', this.handleDrop.bind(this));
+                this.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+                
+                // Modal buttons
+                this.transcribeBtn.addEventListener('click', this.startTranscription.bind(this));
+                this.cancelBtn.addEventListener('click', this.closeModal.bind(this));
+                
+                // Modal backdrop click
+                this.modal.addEventListener('click', (e) => {
+                    if (e.target === this.modal) this.closeModal();
+                });
+            }
+
+            handleDragOver(e) {
+                e.preventDefault();
+                this.dropZone.classList.add('dragover');
+            }
+
+            handleDragLeave(e) {
+                e.preventDefault();
+                this.dropZone.classList.remove('dragover');
+            }
+
+            handleDrop(e) {
+                e.preventDefault();
+                this.dropZone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFileSelection(files[0]);
+                }
+            }
+
+            handleFileSelect(e) {
+                const files = e.target.files;
+                if (files.length > 0) {
+                    this.handleFileSelection(files[0]);
+                }
+            }
+
+            handleFileSelection(file) {
+                // Validate file type
+                if (!file.type.startsWith('audio/')) {
+                    alert('Please select an audio file.');
+                    return;
+                }
+
+                this.selectedFile = file;
+                this.showModal();
+                this.displayFileInfo();
+            }
+
+            displayFileInfo() {
+                const fileSize = (this.selectedFile.size / (1024 * 1024)).toFixed(2);
+                this.fileInfo.innerHTML = `
+                    <strong>Выбранный файл:</strong> ${this.selectedFile.name}<br>
+                    <strong>Размер:</strong> ${fileSize} MB<br>
+                    <strong>Тип:</strong> ${this.selectedFile.type}
+                `;
+            }
+
+            showModal() {
+                this.modal.style.display = 'block';
+                this.uploadProgress.style.display = 'none';
+                this.transcribeBtn.disabled = false;
+                this.languageSelect.value = '';
+            }
+
+            closeModal() {
+                this.modal.style.display = 'none';
+                this.selectedFile = null;
+                this.fileInput.value = '';
+            }
+
+            async startTranscription() {
+                if (!this.selectedFile) return;
+
+                this.transcribeBtn.disabled = true;
+                this.uploadProgress.style.display = 'block';
+                this.uploadProgressFill.style.width = '0%';
+                this.uploadProgressText.textContent = 'Загрузка файла...';
+
+                const formData = new FormData();
+                formData.append('file', this.selectedFile);
+
+                const language = this.languageSelect.value;
+                if (language) {
+                    formData.append('language', language);
+                }
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/transcribe', true);
+
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        this.uploadProgressFill.style.width = percent + '%';
+                        this.uploadProgressText.textContent = `Загрузка файла... ${percent}%`;
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        this.uploadProgressFill.style.width = '100%';
+                        this.uploadProgressText.textContent = 'Загрузка завершена!';
+                        const result = JSON.parse(xhr.responseText);
+                        setTimeout(() => {
+                            this.closeModal();
+                            window.location.href = `/transcription/${result.task_id}`;
+                        }, 500);
+                    } else {
+                        alert('Ошибка распознавания: ' + xhr.statusText);
+                        this.transcribeBtn.disabled = false;
+                        this.uploadProgress.style.display = 'none';
+                    }
+                };
+
+                xhr.onerror = () => {
+                    alert('Ошибка загрузки файла.');
+                    this.transcribeBtn.disabled = false;
+                    this.uploadProgress.style.display = 'none';
+                };
+
+                xhr.send(formData);
+            }
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new TranscriptionApp();
+        });
+    </script>
+</body>
+</html>

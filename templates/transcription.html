@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Transcription - {{task_id}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Onest:wght@100..900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 40px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main_content {
+            padding: 20px;
+        }
+
+        button {
+            font-family: inherit;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .button-secondary {
+            background: #64748b;
+            margin-right: 10px;
+        }
+
+        .button-secondary:hover {
+            background: #475569;
+        }
+
+        .back-button {
+            margin-bottom: 20px;
+        }
+        
+        .button-group {
+            margin-bottom: 20px;
+            line-height: 2.6;
+        }
+
+        .button-small {
+            background: rgba(0, 133, 0, 0.74);
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .button-small:hover {
+            background: rgb(0, 112, 0);
+        }
+
+        .button-small:disabled {
+            opacity: 0.6;
+            box-shadow: none;
+        }
+
+        .cancel-button {
+            background: #ef4444;
+        }
+
+        .cancel-button:hover {
+            background: #dc2626;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px 25px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            padding: 15px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .status-value {
+            color: #64748b;
+        }
+
+        .transcription-output {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 25px;
+            min-height: 50px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #1e293b;
+        }
+
+        .segment {
+            margin-bottom: 15px;
+        }
+
+        .timestamp {
+            color: #64748b;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .segment-text {
+            color: #1e293b;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 50%;
+            border-top-color: #4facfe;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            html {
+                height: 100vh;
+            }
+
+            body {
+                padding: 0px;
+                display: flex;
+            }
+
+            .container {
+                border-radius: 0;
+            }
+
+            .header {
+                padding: 30px 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Распознавание речи</h1>
+            <p>от Artezon</p>
+        </div>
+
+        <div class="main_content">
+            <a href="/" class="button button-secondary back-button">← Назад</a>
+
+            <div class="status-card">
+                <div class="status-item">
+                    <span class="status-label">Название</span>
+                    <span class="status-value" id="fileName">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Язык</span>
+                    <span class="status-value" id="speechLanguage">-</span>
+                </div>
+                <div class="status-item" id="queueProgressItem">
+                    <span class="status-label" id="queueProgressLabel">Инициализация...</span>
+                    <span class="status-value" id="queueProgressValue">-</span>
+                </div>
+            </div>
+
+            <div class="progress-bar" style="margin-bottom: 20px;">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <div class="button-group" id="cancel-group" style="display: none;">
+                <button type="button" class="button button-small cancel-button" id="cancelTranscriptionBtn">Отмена</button>
+            </div>
+            
+            <div class="button-group" id="save-group" style="display: none;">
+                <button type="button" class="button button-small" id="copyTextBtn">Скопировать текст</button>
+                <button type="button" class="button button-small" id="copyTextWithTimestampsBtn">Скопировать текст с временными метками</button>
+                <button type="button" class="button button-small" id="saveTextBtn">Сохранить текст</button>
+                <button type="button" class="button button-small" id="saveTextWithTimestampsBtn">Сохранить текст с временными метками</button>
+                <button type="button" class="button button-small" id="saveLrcBtn">Сохранить как LRC</button>
+                <button type="button" class="button button-small" id="saveSubtitlesBtn">Сохранить как субтитры</button>
+            </div>
+            
+            <div class="transcription-output" id="transcriptionOutput">
+                <div id="transcription-output-box"></div>
+                <div id="transcription-loading-container" style="margin-bottom: -10px; text-align: center; color: #64748b;">
+                    <div class="loading"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TranscriptionPage {
+            constructor(taskId) {
+                this.taskId = taskId;
+                this.eventSource = null;
+                this.languageMap = {
+                    'af': 'Африкаанс',
+                    'ar': 'Арабский',
+                    'hy': 'Армянский',
+                    'az': 'Азербайджанский',
+                    'be': 'Белорусский',
+                    'bs': 'Боснийский',
+                    'bg': 'Болгарский',
+                    'ca': 'Каталанский',
+                    'zh': 'Китайский',
+                    'hr': 'Хорватский',
+                    'cs': 'Чешский',
+                    'da': 'Датский',
+                    'nl': 'Нидерландский',
+                    'en': 'Английский',
+                    'et': 'Эстонский',
+                    'fi': 'Финский',
+                    'fr': 'Французский',
+                    'gl': 'Галисийский',
+                    'de': 'Немецкий',
+                    'el': 'Греческий',
+                    'he': 'Иврит',
+                    'hi': 'Хинди',
+                    'hu': 'Венгерский',
+                    'is': 'Исландский',
+                    'id': 'Индонезийский',
+                    'it': 'Итальянский',
+                    'ja': 'Японский',
+                    'kn': 'Каннада',
+                    'kk': 'Казахский',
+                    'ko': 'Корейский',
+                    'lv': 'Латышский',
+                    'lt': 'Литовский',
+                    'mk': 'Македонский',
+                    'ms': 'Малайский',
+                    'mr': 'Маратхи',
+                    'mi': 'Маори',
+                    'ne': 'Непальский',
+                    'no': 'Норвежский',
+                    'fa': 'Персидский',
+                    'pl': 'Польский',
+                    'pt': 'Португальский',
+                    'ro': 'Румынский',
+                    'ru': 'Русский',
+                    'sr': 'Сербский',
+                    'sk': 'Словацкий',
+                    'sl': 'Словенский',
+                    'es': 'Испанский',
+                    'sw': 'Суахили',
+                    'sv': 'Шведский',
+                    'tl': 'Тагальский',
+                    'ta': 'Тамильский',
+                    'th': 'Тайский',
+                    'tr': 'Турецкий',
+                    'uk': 'Украинский',
+                    'ur': 'Урду',
+                    'vi': 'Вьетнамский',
+                    'cy': 'Валлийский'
+                };
+                this.initializeElements();
+                this.attachEventListeners();
+                this.startSSE();
+            }
+
+            initializeElements() {
+                this.speechLanguage = document.getElementById('speechLanguage');
+                this.fileName = document.getElementById('fileName');
+                this.queueProgressItem = document.getElementById('queueProgressItem');
+                this.queueProgressLabel = document.getElementById('queueProgressLabel');
+                this.queueProgressValue = document.getElementById('queueProgressValue');
+                this.progressFill = document.getElementById('progressFill');
+                this.transcriptionOutput = document.getElementById('transcriptionOutput');
+                this.transcriptionOutputBox = document.getElementById('transcription-output-box');
+                this.loadingContainer = document.getElementById('transcription-loading-container');
+
+                this.cancelGroup =  document.getElementById('cancel-group');
+                this.saveGroup = document.getElementById('save-group');
+            }
+
+            attachEventListeners() {
+                document.getElementById('cancelTranscriptionBtn').addEventListener('click', this.cancelTranscription.bind(this));
+
+                document.getElementById('copyTextBtn').addEventListener('click', () => this.copyText(false));
+                document.getElementById('copyTextWithTimestampsBtn').addEventListener('click', () => this.copyText(true));
+                document.getElementById('saveTextBtn').addEventListener('click', () => this.saveText(false));
+                document.getElementById('saveTextWithTimestampsBtn').addEventListener('click', () => this.saveText(true));
+                document.getElementById('saveLrcBtn').addEventListener('click', () => this.saveAsLRC());
+                document.getElementById('saveSubtitlesBtn').addEventListener('click', () => this.saveAsSRT());
+            }
+
+            startSSE() {
+                this.closeSSE(); // Close any existing connection
+
+                this.eventSource = new EventSource(`/stream/${this.taskId}`);
+
+                this.eventSource.onmessage = (event) => {
+                    try {
+                        this.data = JSON.parse(event.data);
+                        this.updateTranscriptionStatus();
+                    } catch (error) {
+                        console.error('Error parsing SSE data:', error);
+                    }
+                };
+
+                this.eventSource.onerror = (error) => {
+                    console.error('SSE connection error:', error);
+                    this.closeSSE();
+
+                    // Try to reconnect after a delay if not finished
+                    setTimeout(() => {
+                        if (!this.isTranscriptionFinished()) {
+                            this.startSSE();
+                        }
+                    }, 5000);
+                };
+            }
+
+            closeSSE() {
+                if (this.eventSource) {
+                    this.eventSource.close();
+                    this.eventSource = null;
+                }
+            }
+
+            updateTranscriptionStatus() {
+                // Update language and name
+                if (this.data.language) {
+                    const languageName = this.languageMap[this.data.language] || this.data.language.toUpperCase();
+                    this.speechLanguage.textContent = languageName;
+                }
+                if (this.data.name) {
+                    this.fileName.textContent = this.data.name;
+                }
+
+                // Update queue position or progress
+                const progressPercent = Math.round(this.data.progress * 100);
+                if (this.data.queue_pos !== undefined && this.data.queue_pos !== null && this.data.queue_pos > 0) {
+                    this.queueProgressLabel.textContent = 'Место в очереди';
+                    this.queueProgressValue.textContent = this.data.queue_pos;
+                } else if (this.data.cancelled) {
+                    this.queueProgressLabel.textContent = 'Распознавание остановлено пользователем';
+                    this.queueProgressLabel.style.color = '#f59e0b';
+                } else if (this.data.progress === undefined) {
+                    this.queueProgressLabel.textContent = 'Подготовка...';
+                    this.queueProgressValue.textContent = '';
+                } else if (this.data.progress === 1) {
+                    this.queueProgressLabel.textContent = 'Распознавание завершено!!';
+                    this.queueProgressValue.textContent = 'Ура :3';
+                    this.progressFill.style.width = `${progressPercent}%`;
+                } else {
+                    this.queueProgressLabel.textContent = 'Распознавание...';
+                    this.queueProgressValue.textContent = `${progressPercent}%`;
+                    this.progressFill.style.width = `${progressPercent}%`;
+                }
+
+                // Update segments
+                if (this.data.segments && this.data.segments.length > 0) {
+                    this.updateTranscriptionOutput(this.data, this.data.segments);
+                }
+
+                // Handle completion
+                if (this.data.finished || this.data.error || this.data.cancelled) {
+                    this.cancelGroup.style.display = 'none';
+                    this.saveGroup.style.display = 'inline-block';
+                    this.closeSSE();
+
+                    this.loadingContainer.innerHTML = '';
+
+                    if (this.data.error) {
+                        this.transcriptionOutput.innerHTML = `
+                            <div style="text-align: center; color: #ef4444;">
+                                <div style="font-size: 2rem; margin-bottom: 10px;">❌</div>
+                                <div><strong>Ошибка:</strong> ${this.data.error}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    this.cancelGroup.style.display = 'inline-block';
+                    this.saveGroup.style.display = 'none';
+                }
+            }
+
+            updateTranscriptionOutput(data, segments) {
+                segments.forEach(segment => {
+                    // Check if segment already exists
+                    const existingSegment = this.transcriptionOutput.querySelector(`[data-start="${segment.start}"]`);
+                    if (existingSegment) return;
+
+                    const segmentDiv = document.createElement('div');
+                    segmentDiv.className = 'segment';
+                    segmentDiv.setAttribute('data-start', segment.start);
+
+                    const timestamp = this.formatTimestamp(segment.start, segment.end);
+                    segmentDiv.innerHTML = `
+                        <div class="timestamp">${timestamp}</div>
+                        <div class="segment-text">${segment.text}</div>
+                    `;
+
+                    this.transcriptionOutputBox.appendChild(segmentDiv);
+                });
+
+                // Auto-scroll to bottom
+                this.transcriptionOutput.scrollTop = this.transcriptionOutput.scrollHeight;
+            }
+
+            formatTimestamp(start, end) {
+                const formatTime = (seconds) => {
+                    const minutes = Math.floor(seconds / 60);
+                    const secs = Math.floor(seconds % 60);
+                    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                };
+
+                return `${formatTime(start)} - ${formatTime(end)}`;
+            }
+
+            async cancelTranscription() {
+                if (!this.taskId) return;
+
+                try {
+                    const response = await fetch(`/cancel/${this.taskId}`, {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('Cancellation result:', result);
+
+                } catch (error) {
+                    console.error('Error cancelling transcription:', error);
+                    alert('Error cancelling transcription: ' + error.message);
+                }
+            }
+
+            isTranscriptionFinished() {
+                return this.cancelGroup.style.display === 'none';
+            }
+
+            getPlainText(withTimestamps) {
+                const segments = Array.from(this.transcriptionOutput.querySelectorAll('.segment'));
+                return segments.map(seg => {
+                    const ts = seg.querySelector('.timestamp').textContent;
+                    const text = seg.querySelector('.segment-text').textContent;
+                    if (withTimestamps) {
+                        let [start] = ts.split(' - ');
+                        // Add hours if >= 3600
+                        const parts = start.split(':').map(Number);
+                        let formatted = parts.length === 3
+                            ? `[${parts[0]}:${parts[1].toString().padStart(2, '0')}:${parts[2].toString().padStart(2, '0')}]`
+                            : `[${start}]`;
+                        return `${formatted} ${text}`;
+                    }
+                    return text;
+                }).join(withTimestamps ? '\n' : ' ');
+            }
+
+            copyText(withTimestamps) {
+                const content = this.getPlainText(withTimestamps);
+                const textarea = document.createElement('textarea');
+                textarea.value = content;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    alert('Не удалось скопировать текст');
+                }
+                document.body.removeChild(textarea);
+            }
+
+            saveText(withTimestamps) {
+                const content = this.getPlainText(withTimestamps);
+                let filename = this.data.name;
+                if (this.data.name.length > 0 && this.data.name[0] !== '.') {
+                    filename = this.data.name.substring(0, this.data.name.lastIndexOf('.'));
+                }
+                this.downloadFile(content, withTimestamps ? `${filename}_timestamps.txt` : `${filename}.txt`);
+            }
+
+            saveAsLRC() {
+                if (!this.data || !this.data.segments) return;
+
+                const lrc = this.data.segments.map(seg => {
+                    const total = seg.start;
+                    const minutes = Math.floor(total / 60);
+                    const seconds = Math.floor(total % 60);
+                    const hundredths = Math.floor((total % 1) * 100);
+                    const timeTag = `[${minutes}:${seconds.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}]`;
+                    return `${timeTag}${seg.text.trim()}`;
+                }).join('\n');
+
+                let filename = "transcription";
+                if (this.data.name && this.data.name.includes('.')) {
+                    filename = this.data.name.substring(0, this.data.name.lastIndexOf('.'));
+                }
+                this.downloadFile(lrc, `${filename}.lrc`);
+            }
+
+            saveAsSRT() {
+                if (!this.data || !this.data.segments) return;
+
+                const format = seconds => {
+                    const hrs = Math.floor(seconds / 3600);
+                    const mins = Math.floor((seconds % 3600) / 60);
+                    const secs = Math.floor(seconds % 60);
+                    const ms = Math.floor((seconds % 1) * 1000); // full milliseconds
+                    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+                };
+
+                const srt = this.data.segments.map((seg, i) => {
+                    return `${i + 1}\n${format(seg.start)} --> ${format(seg.end)}\n${seg.text.trim()}\n`;
+                }).join('\n');
+
+                let filename = "transcription";
+                if (this.data.name && this.data.name.includes('.')) {
+                    filename = this.data.name.substring(0, this.data.name.lastIndexOf('.'));
+                }
+                this.downloadFile(srt, `${filename}.srt`);
+            }
+
+            downloadFile(content, filename) {
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+        }
+
+        // Initialize the transcription page when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new TranscriptionPage('{{task_id}}');
+        });
+    </script>
+</body>
+</html>

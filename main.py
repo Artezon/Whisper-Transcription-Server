@@ -1,19 +1,23 @@
 import json
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+import random
+import string
+import aiofiles
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 import asyncio
 import os
 import uuid
 from typing import Optional
+from fastapi.templating import Jinja2Templates
 from faster_whisper import WhisperModel
 import uvicorn
 import time
 
 MODEL_NAME = "large-v3"
 MAX_SIMULTANEOUS_TASKS = 2
-PRINT_SECOND_FRACTIONS = False
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 print(f"Loading model {MODEL_NAME}...")
 model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
@@ -26,8 +30,9 @@ task_queue_condition = asyncio.Condition()
 
 
 class TranscriptionTask:
-    def __init__(self, path: str, language: Optional[str] = None):
+    def __init__(self, path: str, name: str, language: Optional[str] = None):
         self.uuid = str(uuid.uuid4())
+        self.name = name
         self.path = path
         self.language = language
         self.queue_position = None
@@ -115,7 +120,7 @@ class TranscriptionTask:
                 async with task_queue_condition:
                     task_queue_condition.notify_all()
             print(self.uuid, "Task cancelled")
-            self.publish_update(cancelled=self.cancelled, message="Cancelled by user")
+            self.publish_update(finished=self.finished, cancelled=self.cancelled, message="Cancelled by user")
             raise
         except Exception as e:
             self.error = str(e)
@@ -129,14 +134,25 @@ class TranscriptionTask:
 
 
 @app.post("/transcribe")
-async def start_transcription(path: str, language: Optional[str] = None):
-    path = path.strip(" '\"\n\t")
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-
-    task = TranscriptionTask(path, language)
+async def start_transcription(file: UploadFile = File(...), language: Optional[str] = Form(None)):
+    task_uuid = str(uuid.uuid4())
+    audio_dir = f"audio/{task_uuid}"
+    os.makedirs(audio_dir, exist_ok=True)
+    
+    random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    file_extension = os.path.splitext(file.filename)[1]
+    base_name = os.path.splitext(file.filename)[0]
+    new_filename = f"{base_name}_{random_string}{file_extension}"
+    file_path = os.path.join(audio_dir, new_filename)
+    
+    async with aiofiles.open(file_path, "wb") as out_f:
+        while chunk := await file.read(1024 * 1024):
+            await out_f.write(chunk)
+    
+    task = TranscriptionTask(file_path, file.filename, language)
     tasks[task.uuid] = task
     task.asyncio_task = asyncio.create_task(task.run())
+    
     return {"task_id": task.uuid}
 
 
@@ -147,6 +163,7 @@ async def get_transcription_data(task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
     return {k: v for k, v in {
         "task_id": task.uuid,
+        "name": task.name,
         "language": task.language,
         "queue_pos": task.queue_position,
         "progress": task.progress,
@@ -195,5 +212,22 @@ async def cancel_transcription(task_id: str):
         return {"task_id": task_id, "status": "already finished"}
 
 
+@app.get("/", response_class=HTMLResponse)
+async def main_page(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/transcription/{task_id}", response_class=HTMLResponse)
+async def transcription_page(request: Request, task_id: str):
+    task = tasks.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return templates.TemplateResponse("transcription.html", {
+        "request": request,
+        "task_id": task_id
+    })
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8081)
+    uvicorn.run(app, host="0.0.0.0", port=80)
