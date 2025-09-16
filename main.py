@@ -1,8 +1,6 @@
 import json
-import random
-import string
 import aiofiles
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, APIRouter, File, Form, HTTPException, Request, UploadFile
 from contextlib import asynccontextmanager
 from fastapi.responses import HTMLResponse, StreamingResponse
 import asyncio
@@ -30,6 +28,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+api = APIRouter(prefix="/api")
 templates = Jinja2Templates(directory="templates")
 
 print(f"Loading model {MODEL_NAME}...")
@@ -150,7 +149,7 @@ async def remove_from_queue(item) -> bool:
             return False
 
 
-@app.post("/transcribe")
+@api.post("/transcribe")
 async def start_transcription(request: Request, file: UploadFile = File(...), language: Optional[str] = Form(None)):
     os.makedirs(AUDIO_DIR, exist_ok=True)
     task_uuid = str(uuid.uuid4())
@@ -171,7 +170,7 @@ async def start_transcription(request: Request, file: UploadFile = File(...), la
     return {"task_id": task.uuid}
 
 
-@app.get("/data/{task_id}")
+@api.get("/data/{task_id}")
 async def get_transcription_data(task_id: str):
     task = tasks.get(task_id)
     if not task:
@@ -196,7 +195,7 @@ async def get_transcription_data(task_id: str):
     }.items() if v is not None and v != []}
 
 
-@app.get("/stream/{task_id}")
+@api.get("/stream/{task_id}")
 async def stream_transcription(task_id: str):
     task = tasks.get(task_id)
     if not task:
@@ -219,7 +218,7 @@ async def stream_transcription(task_id: str):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@app.post("/cancel/{task_id}")
+@api.post("/cancel/{task_id}")
 async def cancel_transcription(task_id: str):
     task = tasks.get(task_id)
     if not task:
@@ -256,6 +255,8 @@ async def transcription_page(request: Request, task_id: str):
         raise HTTPException(status_code=404, detail="Task not found")
     return templates.TemplateResponse("transcription.html", {"request": request, "task_id": task_id, "name": task.name})
 
+
+app.include_router(api)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=1337)

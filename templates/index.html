@@ -498,7 +498,7 @@
                 }
 
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/transcribe', true);
+                xhr.open('POST', '/api/transcribe', true);
 
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
