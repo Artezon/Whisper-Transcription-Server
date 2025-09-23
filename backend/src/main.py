@@ -1,6 +1,7 @@
 import json
 import aiofiles
 from fastapi import FastAPI, APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.responses import HTMLResponse, StreamingResponse
 import asyncio
@@ -11,10 +12,15 @@ from fastapi.templating import Jinja2Templates
 from faster_whisper import WhisperModel
 import uvicorn
 import time
+from dotenv import load_dotenv
 
-MODEL_NAME = "large-v3"
-NUM_WORKERS = 2
-AUDIO_DIR = "audio"
+load_dotenv()
+
+MODEL_NAME = os.environ["MODEL_NAME"]
+NUM_WORKERS = int(os.environ["NUM_WORKERS"])
+AUDIO_DIR = os.environ["AUDIO_DIR"]
+HOST = os.environ["HOST"]
+PORT = int(os.environ["PORT"])
 
 
 @asynccontextmanager
@@ -29,7 +35,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 api = APIRouter(prefix="/api")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="templates")\
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ["FRONTEND_CORS"].split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 print(f"Loading model {MODEL_NAME}...")
 model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
@@ -243,20 +257,15 @@ async def cancel_transcription(task_id: str):
         return {"task_id": task_id, "status": "already finished"}
 
 
-@app.get("/", response_class=HTMLResponse)
-async def main_page(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
-
-@app.get("/transcription/{task_id}", response_class=HTMLResponse)
-async def transcription_page(request: Request, task_id: str):
-    task = tasks.get(task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return templates.TemplateResponse("transcription.html", {"request": request, "task_id": task_id, "name": task.name})
+@api.get("/status")
+async def get_status():
+    return {
+        "ready": True,
+        "in_queue": task_queue.qsize()
+    }
 
 
 app.include_router(api)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=1337)
+    uvicorn.run(app, host=HOST, port=PORT)

@@ -4,236 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Распознавание речи - {{name}}</title>
+    <title>Распознавание речи</title>
+    <link rel="stylesheet" href="/transcribe/public/styles/main.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Onest:wght@100..900&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            padding: 40px;
-            text-align: center;
-            color: white;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .main_content {
-            padding: 20px;
-        }
-
-        button {
-            font-family: inherit;
-        }
-
-        .button {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 14px 28px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .button-secondary {
-            background: #64748b;
-            margin-right: 10px;
-        }
-
-        .button-secondary:hover {
-            background: #475569;
-        }
-
-        .back-button {
-            margin-bottom: 20px;
-        }
-        
-        .button-group {
-            margin-bottom: 20px;
-            line-height: 2.6;
-        }
-
-        .button-small {
-            background: rgba(0, 133, 0, 0.74);
-            color: white;
-            padding: 10px;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            display: inline-block;
-            text-align: center;
-        }
-
-        .button-small:hover {
-            background: rgb(0, 112, 0);
-        }
-
-        .button-small:disabled {
-            opacity: 0.6;
-            box-shadow: none;
-        }
-
-        .cancel-button {
-            background: #ef4444;
-        }
-
-        .cancel-button:hover {
-            background: #dc2626;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e5e7eb;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-
-        .status-card {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 10px 25px;
-            margin-bottom: 20px;
-        }
-
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 20px;
-            padding: 15px 0;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .status-item:last-child {
-            border-bottom: none;
-        }
-
-        .status-label {
-            font-weight: 600;
-            color: #374151;
-        }
-
-        .status-value {
-            color: #64748b;
-        }
-
-        .transcription-output {
-            background: white;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 25px;
-            min-height: 50px;
-            font-size: 1.1rem;
-            line-height: 1.8;
-            color: #1e293b;
-        }
-
-        .segment {
-            margin-bottom: 15px;
-        }
-
-        .timestamp {
-            color: #64748b;
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .segment-text {
-            color: #1e293b;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #e5e7eb;
-            border-radius: 50%;
-            border-top-color: #4facfe;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        @media (max-width: 768px) {
-            html {
-                height: 100vh;
-            }
-
-            body {
-                padding: 0px;
-                display: flex;
-            }
-
-            .container {
-                border-radius: 0;
-                width: 100%;
-            }
-
-            .header {
-                padding: 30px 20px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-        }
-    </style>
 </head>
 
 <body>
@@ -244,7 +19,7 @@
         </div>
 
         <div class="main_content">
-            <a href="/" class="button button-secondary back-button">← Назад</a>
+            <a href="/transcribe" class="button button-secondary back-button">← Назад</a>
 
             <div class="status-card">
                 <div class="status-item">
@@ -387,7 +162,13 @@
 
                 this.data = { segments: [] };
 
-                this.eventSource = new EventSource(`/api/stream/${this.taskId}`);
+                fetch(`<%- backendOrigin %>/api/data/${this.taskId}`).then(resp => {
+                    if (resp.status == 404) {
+                        window.location.replace("/transcribe/404")
+                    }
+                })
+                
+                this.eventSource = new EventSource(`<%- backendOrigin %>/api/stream/${this.taskId}`);
 
                 this.eventSource.onmessage = (event) => {
                     try {
@@ -432,6 +213,7 @@
                 }
                 if (this.data.name) {
                     this.fileName.textContent = this.data.name;
+                    document.title = `Распознавание речи - ${this.data.name}`
                 }
 
                 // Update queue position or progress
@@ -517,7 +299,7 @@
                 if (!this.taskId) return;
 
                 try {
-                    const response = await fetch(`/api/cancel/${this.taskId}`, {
+                    const response = await fetch(`<%- backendOrigin %>/api/cancel/${this.taskId}`, {
                         method: 'POST'
                     });
 
@@ -629,7 +411,7 @@
 
         // Initialize the transcription page when DOM is loaded
         document.addEventListener('DOMContentLoaded', () => {
-            new TranscriptionPage('{{task_id}}');
+            new TranscriptionPage(window.location.href.substring(window.location.href.lastIndexOf("/") + 1));
         });
     </script>
 </body>

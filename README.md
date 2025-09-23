@@ -8,9 +8,9 @@ Read transcription on the page, copy or save it as raw text, text with timestamp
 > Currently no database is used, so transcription data is **not** saved on the server when it's stopped!
 
 ### TODO
-- [ ] Move save functionality to the server side
+- [ ] Move save functionality to server side
 - [ ] Refactor code
-- [ ] Implement persistent storage in the database and config file
+- [ ] Implement persistent storage in database
 - [ ] Translate to English
 - [ ] Add requirements.txt
 
