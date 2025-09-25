@@ -81,9 +81,8 @@ class TranscriptionTask:
             pass
 
     async def publish_update(self, **kwargs):
-        data = {k: v for k, v in kwargs.items() if v is not None}
         for q in self.subscribers:
-            await q.put(data)
+            await q.put(kwargs)
     
     async def run(self, worker_id: int):
         if self.cancelled:
@@ -94,7 +93,8 @@ class TranscriptionTask:
         segments, info = await asyncio.to_thread(model.transcribe, self.path, self.language, multilingual=True)
         print(self.uuid, self.language, info.language, info.language_probability)
         self.language = info.language
-        await self.publish_update(language=self.language)
+        self.progress = 0.0
+        await self.publish_update(progress=self.progress, language=self.language)
 
         def generate_segment():
             try:
@@ -137,6 +137,7 @@ async def worker_loop(worker_id: int):
             await t.publish_update(queue_pos=i + 1)
 
         try:
+            await task.publish_update(queue_pos=None)
             await task.run(worker_id)
         except asyncio.CancelledError:
             task.cancelled = True

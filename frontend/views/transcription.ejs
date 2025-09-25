@@ -30,9 +30,9 @@
                     <span class="status-label">Язык</span>
                     <span class="status-value" id="speechLanguage">-</span>
                 </div>
-                <div class="status-item" id="queueProgressItem">
-                    <span class="status-label" id="queueProgressLabel">Инициализация...</span>
-                    <span class="status-value" id="queueProgressValue">-</span>
+                <div class="status-item">
+                    <span class="status-label" id="progressLabel">Загрузка...</span>
+                    <span class="status-value" id="progressValue">-</span>
                 </div>
             </div>
 
@@ -134,9 +134,8 @@
             initializeElements() {
                 this.speechLanguage = document.getElementById('speechLanguage');
                 this.fileName = document.getElementById('fileName');
-                this.queueProgressItem = document.getElementById('queueProgressItem');
-                this.queueProgressLabel = document.getElementById('queueProgressLabel');
-                this.queueProgressValue = document.getElementById('queueProgressValue');
+                this.progressLabel = document.getElementById('progressLabel');
+                this.progressValue = document.getElementById('progressValue');
                 this.progressFill = document.getElementById('progressFill');
                 this.transcriptionOutput = document.getElementById('transcriptionOutput');
                 this.transcriptionOutputBox = document.getElementById('transcription-output-box');
@@ -219,21 +218,21 @@
                 // Update queue position or progress
                 const progressPercent = Math.round(this.data.progress * 100);
                 if (this.data.queue_pos !== undefined && this.data.queue_pos !== null && this.data.queue_pos > 0) {
-                    this.queueProgressLabel.textContent = 'Место в очереди';
-                    this.queueProgressValue.textContent = this.data.queue_pos;
+                    this.progressLabel.textContent = 'Место в очереди';
+                    this.progressValue.textContent = this.data.queue_pos;
                 } else if (this.data.cancelled) {
-                    this.queueProgressLabel.textContent = 'Распознавание остановлено пользователем';
-                    this.queueProgressLabel.style.color = '#f59e0b';
-                } else if (this.data.progress === undefined) {
-                    this.queueProgressLabel.textContent = 'Подготовка...';
-                    this.queueProgressValue.textContent = '';
+                    this.progressLabel.textContent = 'Распознавание остановлено пользователем';
+                    this.progressLabel.style.color = '#f59e0b';
+                } else if (this.data.language === undefined) {
+                    this.progressLabel.textContent = 'Подготовка...';
+                    this.progressValue.textContent = '';
                 } else if (this.data.progress === 1) {
-                    this.queueProgressLabel.textContent = 'Распознавание завершено!!';
-                    this.queueProgressValue.textContent = 'Ура :3';
+                    this.progressLabel.textContent = 'Распознавание завершено!!';
+                    this.progressValue.textContent = 'Ура :3';
                     this.progressFill.style.width = `${progressPercent}%`;
                 } else {
-                    this.queueProgressLabel.textContent = 'Распознавание...';
-                    this.queueProgressValue.textContent = `${progressPercent}%`;
+                    this.progressLabel.textContent = 'Распознавание...';
+                    this.progressValue.textContent = `${progressPercent}%`;
                     this.progressFill.style.width = `${progressPercent}%`;
                 }
 
